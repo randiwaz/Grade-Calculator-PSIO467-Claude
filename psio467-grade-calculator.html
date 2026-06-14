@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PSIO 467 — Grade Calculator</title>
+<style>
+  /* ── UA Brand Colors ──────────────────────────────────────── */
+  :root {
+    --ua-red:        #AB0520;
+    --ua-red-shadow: #8B0015;
+    --ua-red-light:  #EF4056;
+    --az-blue:       #0C234B;
+    --az-blue-mid:   #1E5288;
+    --az-blue-sky:   #1DA1D8;
+    --az-blue-light: #70B3D8;
+    --cool-gray:     #E2E9EB;
+    --warm-gray:     #F4EFE4;
+    --white:         #FFFFFF;
+    --text-dark:     #1A1A2E;
+    --text-mid:      #4A5568;
+    /* Desert accents (secondary palette) */
+    --oasis:         #378DBD;
+    --mesa:          #D16F27;
+    --sage:          #70A94A;
+    --cactus:        #5C7E37;
+    --sand:          #F5D580;
+
+    --radius-card:   14px;
+    --radius-inner:  9px;
+    --shadow:        0 2px 14px rgba(12,35,75,0.10);
+    --shadow-hover:  0 6px 28px rgba(12,35,75,0.16);
+    --transition:    all 0.22s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--warm-gray);
+    color: var(--text-dark);
+    min-height: 100vh;
+    padding: 0 0 48px;
+  }
+
+  /* ── Header ─────────────────────────────────────────────── */
+  header {
+    background: var(--az-blue);
+    color: var(--white);
+    padding: 0 40px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    height: 72px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  }
+  .header-accent {
+    width: 6px;
+    height: 38px;
+    background: var(--ua-red);
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .header-text h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+  }
+  .header-text p {
+    font-size: 0.78rem;
+    opacity: 0.72;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .header-badge {
+    margin-left: auto;
+    background: var(--ua-red);
+    color: var(--white);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 13px;
+    border-radius: 20px;
+  }
+
+  /* ── Main bento grid ─────────────────────────────────────── */
+  main {
+    max-width: 1200px;
+    margin: 36px auto 0;
+    padding: 0 32px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 20px;
+  }
+
+  /* ── Card base ───────────────────────────────────────────── */
+  .card {
+    background: var(--white);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow);
+    padding: 24px 24px 20px;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+  }
+  .card:hover { box-shadow: var(--shadow-hover); }
+
+  .card-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .card-label::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 3px;
+    border-radius: 2px;
+  }
+  .card-label.red::before  { background: var(--ua-red); }
+  .card-label.blue::before { background: var(--az-blue-mid); }
+  .card-label.sky::before  { background: var(--az-blue-sky); }
+  .card-label.mesa::before { background: var(--mesa); }
+
+  .card-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--az-blue);
+    margin-bottom: 18px;
+    line-height: 1.3;
+  }
+
+  /* ── Exam card — spans 2 cols ────────────────────────────── */
+  .card-exams   { grid-column: 1 / 3; }
+  .card-assign  { grid-column: 3 / 4; }
+  .card-scale   { grid-column: 1 / 2; }
+  .card-current { grid-column: 2 / 4; }
+  .card-target  { grid-column: 1 / 4; }
+
+  /* ── Score inputs ────────────────────────────────────────── */
+  .score-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .score-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .score-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .score-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .score-field label {
+    font-size: 0.73rem;
+    font-weight: 600;
+    color: var(--text-mid);
+    letter-spacing: 0.02em;
+  }
+  .score-field input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid var(--cool-gray);
+    border-radius: var(--radius-inner);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--az-blue);
+    background: var(--warm-gray);
+    transition: var(--transition);
+    appearance: none;
+    -moz-appearance: textfield;
+  }
+  .score-field input:focus {
+    outline: none;
+    border-color: var(--az-blue-mid);
+    background: var(--white);
+    box-shadow: 0 0 0 3px rgba(30,82,136,0.12);
+  }
+  .score-field input::placeholder { color: #B0B8C4; font-weight: 400; }
+  .score-field input::-webkit-outer-spin-button,
+  .score-field input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  .field-meta {
+    font-size: 0.65rem;
+    color: #9AA4B0;
+    text-align: right;
+  }
+
+  /* ── Grade Scale table ───────────────────────────────────── */
+  .scale-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .scale-table tr + tr { border-top: 1px solid var(--cool-gray); }
+  .scale-table td {
+    padding: 9px 8px;
+    font-size: 0.85rem;
+  }
+  .scale-table td:first-child {
+    font-weight: 800;
+    font-size: 1rem;
+    width: 36px;
+  }
+  .scale-table td:last-child {
+    text-align: right;
+    color: var(--text-mid);
+    font-size: 0.78rem;
+  }
+  .grade-A { color: var(--cactus); }
+  .grade-B { color: var(--az-blue-mid); }
+  .grade-C { color: var(--mesa); }
+  .grade-D { color: #B07A30; }
+  .grade-E { color: var(--ua-red); }
+
+  /* ── Current stats ───────────────────────────────────────── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .stat-box {
+    background: var(--warm-gray);
+    border-radius: var(--radius-inner);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-box.accent-blue { background: var(--az-blue); }
+  .stat-box.accent-blue .stat-val { color: var(--white); }
+  .stat-box.accent-blue .stat-lbl { color: rgba(255,255,255,0.65); }
+
+  .stat-val {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--az-blue);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .stat-val.grade-letter {
+    font-size: 2.4rem;
+  }
+  .stat-lbl {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+  }
+  .stat-val .grade-A { color: var(--cactus); }
+  .stat-val .grade-B { color: var(--az-blue-sky); }
+  .stat-val .grade-C { color: var(--mesa); }
+  .stat-val .grade-D { color: #B07A30; }
+  .stat-val .grade-E { color: var(--ua-red-light); }
+
+  /* progress bar */
+  .progress-wrap {
+    margin-top: 16px;
+    background: var(--cool-gray);
+    border-radius: 99px;
+    height: 8px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.4s ease, background 0.3s ease;
+    background: var(--az-blue-mid);
+  }
+  .progress-label {
+    font-size: 0.68rem;
+    color: var(--text-mid);
+    margin-top: 5px;
+    text-align: right;
+  }
+
+  /* ── Target grade panel ──────────────────────────────────── */
+  .card-target {
+    display: none; /* hidden until condition met */
+  }
+  .card-target.visible { display: block; }
+
+  .target-inner {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  /* Grade selector tabs */
+  .grade-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .grade-tab {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    border: 2.5px solid var(--cool-gray);
+    background: var(--warm-gray);
+    font-size: 1.2rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-mid);
+  }
+  .grade-tab:hover { border-color: var(--az-blue-mid); color: var(--az-blue-mid); }
+  .grade-tab.active {
+    background: var(--az-blue);
+    border-color: var(--az-blue);
+    color: var(--white);
+    box-shadow: 0 3px 10px rgba(12,35,75,0.28);
+  }
+  .grade-tab.active.tA { background: var(--cactus);     border-color: var(--cactus); }
+  .grade-tab.active.tB { background: var(--az-blue-mid); border-color: var(--az-blue-mid); }
+  .grade-tab.active.tC { background: var(--mesa);        border-color: var(--mesa); }
+  .grade-tab.active.tD { background: #B07A30;            border-color: #B07A30; }
+  .grade-tab.active.tE { background: var(--ua-red);      border-color: var(--ua-red); }
+
+  /* Target result display */
+  .target-result {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .target-headline {
+    font-size: 0.85rem;
+    color: var(--text-mid);
+    line-height: 1.5;
+  }
+  .target-score-display {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .target-score-big {
+    font-size: 4rem;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--az-blue);
+  }
+  .target-score-unit {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-mid);
+  }
+  .target-note {
+    font-size: 0.78rem;
+    color: var(--text-mid);
+    background: var(--cool-gray);
+    padding: 8px 12px;
+    border-radius: var(--radius-inner);
+    line-height: 1.5;
+  }
+  .target-note.good    { background: #E8F5E2; color: var(--cactus); }
+  .target-note.caution { background: #FFF3E0; color: var(--mesa); }
+  .target-note.danger  { background: #FDECEA; color: var(--ua-red); }
+
+  /* ── Decorative corner accent ────────────────────────────── */
+  .corner-accent {
+    position: absolute;
+    bottom: -18px;
+    right: -18px;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    opacity: 0.07;
+    pointer-events: none;
+  }
+  .corner-accent.red  { background: var(--ua-red); }
+  .corner-accent.blue { background: var(--az-blue); }
+
+  /* ── Divider ─────────────────────────────────────────────── */
+  .section-divider {
+    grid-column: 1 / 4;
+    height: 1px;
+    background: var(--cool-gray);
+    margin: 2px 0;
+  }
+
+  /* ── Tooltip / clear button ──────────────────────────────── */
+  .card-actions {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+  }
+  .btn-clear {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+    background: var(--cool-gray);
+    border: none;
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .btn-clear:hover { background: var(--ua-red); color: var(--white); }
+
+  /* ── Animations ──────────────────────────────────────────── */
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card { animation: fadeSlideUp 0.35s ease both; }
+  .card:nth-child(1) { animation-delay: 0.05s; }
+  .card:nth-child(2) { animation-delay: 0.10s; }
+  .card:nth-child(3) { animation-delay: 0.15s; }
+  .card:nth-child(4) { animation-delay: 0.20s; }
+  .card:nth-child(5) { animation-delay: 0.25s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card { animation: none; }
+    .progress-bar, .score-field input { transition: none; }
+  }
+
+  /* ── Responsive ──────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    main {
+      grid-template-columns: 1fr 1fr;
+      padding: 0 16px;
+    }
+    .card-exams   { grid-column: 1 / 3; }
+    .card-assign  { grid-column: 1 / 3; }
+    .card-scale   { grid-column: 1 / 2; }
+    .card-current { grid-column: 2 / 3; }
+    .card-target  { grid-column: 1 / 3; }
+    .score-grid   { grid-template-columns: repeat(3, 1fr); }
+    .score-grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    main { grid-template-columns: 1fr; }
+    .card-exams, .card-assign, .card-scale,
+    .card-current, .card-target { grid-column: 1 / 2; }
+    .score-grid { grid-template-columns: 1fr 1fr; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .target-inner { grid-template-columns: 1fr; }
+    .grade-tabs { flex-direction: row; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-accent"></div>
+  <div class="header-text">
+    <h1>PSIO 467 — Grade Calculator</h1>
+    <p>University of Arizona · Track your progress &amp; target your final grade</p>
+  </div>
+  <span class="header-badge">Fall 2025</span>
+</header>
+
+<main id="main-grid">
+
+  <!-- ── Exams ──────────────────────────────────────────────── -->
+  <div class="card card-exams">
+    <div class="card-label red">Exams</div>
+    <div class="card-title">Exam Scores</div>
+    <div class="card-actions">
+      <button class="btn-clear" onclick="clearGroup('exam')">Clear</button>
+    </div>
+    <div class="score-grid">
+      <div class="score-field">
+        <label for="exam1">Exam 1</label>
+        <input type="number" id="exam1" min="0" max="150" placeholder="—" step="0.1" oninput="recalc()">
+        <span class="field-meta">/ 100 pts</span>
+      </div>
+      <div class="score-field">
+        <label for="exam2">Exam 2</label>
+        <input type="number" id="exam2" min="0" max="150" placeholder="—" step="0.1" oninput="recalc()">
+        <span class="field-meta">/ 100 pts</span>
+      </div>
+      <div class="score-field">
+        <label for="exam3">Exam 3</label>
+        <input type="number" id="exam3" min="0" max="150" placeholder="—" step="0.1" oninput="recalc()">
+        <span class="field-meta">/ 100 pts</span>
+      </div>
+    </div>
+    <div class="corner-accent red"></div>
+  </div>
+
+  <!-- ── Assignments ────────────────────────────────────────── -->
+  <div class="card card-assign">
+    <div class="card-label blue">Assignments</div>
+    <div class="card-title">Assignment Scores</div>
+    <div class="card-actions">
+      <button class="btn-clear" onclick="clearGroup('assign')">Clear</button>
+    </div>
+    <div class="score-grid cols-4" style="grid-template-columns:1fr 1fr;">
+      <div class="score-field">
+        <label for="a1">Assignment 1</label>
+        <input type="number" id="a1" min="0" max="35" placeholder="—" step="0.1" oninput="recalc()">
+        <span class="field-meta">/ 25 pts</span>
+      </div>
+      <div class="score-field">
+        <label for="a2">Assignment 2</label>
+        <input type="number" id="a2" min="0" max="35" placeholder="—" step="0.1" oninput="recalc()">
+        <span class="field-meta">/ 25 pts</span>
+      </div>
+      <div class="score-field">
+        <label for="a3">Assignment 3</label>
+        <input type="number" id="a3" min="0" max="35" placeholder="—" step="0.1" oninput="recalc()">
+        <span class="field-meta">/ 25 pts</span>
+      </div>
+      <div class="score-field">
+        <label for="a4">Assignment 4</label>
+        <input type="number" id="a4" min="0" max="35" placeholder="—" step="0.1" oninput="recalc()">
+        <span class="field-meta">/ 25 pts</span>
+      </div>
+    </div>
+    <div class="corner-accent blue"></div>
+  </div>
+
+  <!-- ── Grade Scale ────────────────────────────────────────── -->
+  <div class="card card-scale">
+    <div class="card-label sky">Reference</div>
+    <div class="card-title">Letter Grade Scale</div>
+    <table class="scale-table" aria-label="Letter grade scale">
+      <tbody>
+        <tr>
+          <td class="grade-A">A</td>
+          <td>90.0% – 100%</td>
+          <td>Excellent</td>
+        </tr>
+        <tr>
+          <td class="grade-B">B</td>
+          <td>80.0% – 89.9%</td>
+          <td>Good</td>
+        </tr>
+        <tr>
+          <td class="grade-C">C</td>
+          <td>70.0% – 79.9%</td>
+          <td>Satisfactory</td>
+        </tr>
+        <tr>
+          <td class="grade-D">D</td>
+          <td>60.0% – 69.9%</td>
+          <td>Passing</td>
+        </tr>
+        <tr>
+          <td class="grade-E">E</td>
+          <td>59.9% or below</td>
+          <td>Failing</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top:14px; font-size:0.68rem; color:var(--text-mid); line-height:1.6;">
+      Each exam is worth <strong>100 pts</strong>. Each assignment is worth <strong>25 pts</strong>. Extra credit may push scores above the base value. Exam 4 is the final exam.
+    </div>
+  </div>
+
+  <!-- ── Current Standing ───────────────────────────────────── -->
+  <div class="card card-current">
+    <div class="card-label mesa">Your Standing</div>
+    <div class="card-title">Current Progress</div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-val" id="pts-earned">—</div>
+        <div class="stat-lbl">Points Earned</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="pts-attempted">—</div>
+        <div class="stat-lbl">Points Attempted</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="current-pct">—</div>
+        <div class="stat-lbl">Current Average</div>
+      </div>
+      <div class="stat-box accent-blue">
+        <div class="stat-val grade-letter" id="current-grade" aria-live="polite">—</div>
+        <div class="stat-lbl">Current Letter Grade</div>
+      </div>
+    </div>
+    <div class="progress-wrap" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="progress-wrap">
+      <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+    </div>
+    <div class="progress-label" id="progress-label">Enter scores above to see your progress</div>
+  </div>
+
+  <!-- ── Target Grade (conditional) ───────────────────────── -->
+  <div class="card card-target" id="card-target">
+    <div class="card-label red">Exam 4 Goal</div>
+    <div class="card-title">Score Needed on Exam 4</div>
+    <div class="target-inner">
+      <div class="grade-tabs" role="group" aria-label="Select target grade">
+        <button class="grade-tab tA active" data-grade="A" onclick="selectTargetGrade('A')" aria-pressed="true">A</button>
+        <button class="grade-tab tB" data-grade="B" onclick="selectTargetGrade('B')" aria-pressed="false">B</button>
+        <button class="grade-tab tC" data-grade="C" onclick="selectTargetGrade('C')" aria-pressed="false">C</button>
+        <button class="grade-tab tD" data-grade="D" onclick="selectTargetGrade('D')" aria-pressed="false">D</button>
+        <button class="grade-tab tE" data-grade="E" onclick="selectTargetGrade('E')" aria-pressed="false">E</button>
+      </div>
+      <div class="target-result">
+        <div class="target-headline" id="target-headline">
+          Select a target grade to see what you need on Exam 4.
+        </div>
+        <div class="target-score-display">
+          <div class="target-score-big" id="target-score-big">—</div>
+          <div class="target-score-unit" id="target-score-unit"></div>
+        </div>
+        <div class="target-note" id="target-note"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // ── State ──────────────────────────────────────────────────
+  const GRADE_THRESHOLDS = { A: 90, B: 80, C: 70, D: 60, E: 0 };
+  const GRADE_MIN_PCT    = { A: 90.0, B: 80.0, C: 70.0, D: 60.0, E: 0 };
+  const EXAM_MAX   = 100;
+  const ASSIGN_MAX = 25;
+  const TOTAL_POSSIBLE_W_EXAM4 = (EXAM_MAX * 4) + (ASSIGN_MAX * 4); // 500
+
+  let targetGrade = 'A';
+
+  function val(id) {
+    const v = parseFloat(document.getElementById(id).value);
+    return isNaN(v) ? null : v;
+  }
+
+  function letterGrade(pct) {
+    if (pct >= 90) return 'A';
+    if (pct >= 80) return 'B';
+    if (pct >= 70) return 'C';
+    if (pct >= 60) return 'D';
+    return 'E';
+  }
+
+  function gradeColor(g) {
+    return { A:'var(--cactus)', B:'var(--az-blue-sky)', C:'var(--mesa)', D:'#B07A30', E:'var(--ua-red-light)' }[g] || 'inherit';
+  }
+
+  function recalc() {
+    const e1 = val('exam1'), e2 = val('exam2'), e3 = val('exam3');
+    const a1 = val('a1'), a2 = val('a2'), a3 = val('a3'), a4 = val('a4');
+
+    // Build attempted / earned
+    const scores = [
+      { v: e1, max: EXAM_MAX }, { v: e2, max: EXAM_MAX }, { v: e3, max: EXAM_MAX },
+      { v: a1, max: ASSIGN_MAX }, { v: a2, max: ASSIGN_MAX },
+      { v: a3, max: ASSIGN_MAX }, { v: a4, max: ASSIGN_MAX }
+    ];
+
+    let earned = 0, attempted = 0, hasAny = false;
+    for (const s of scores) {
+      if (s.v !== null) {
+        earned    += s.v;
+        attempted += s.max;
+        hasAny = true;
+      }
+    }
+
+    // Update current stats
+    if (hasAny) {
+      const pct = (earned / attempted) * 100;
+      const lg  = letterGrade(pct);
+      document.getElementById('pts-earned').textContent    = earned % 1 === 0 ? earned : earned.toFixed(1);
+      document.getElementById('pts-attempted').textContent = attempted;
+      document.getElementById('current-pct').textContent   = pct.toFixed(1) + '%';
+      document.getElementById('current-grade').innerHTML   = `<span style="color:${gradeColor(lg)}">${lg}</span>`;
+
+      // progress bar
+      const barPct = Math.min(pct, 105);
+      const bar = document.getElementById('progress-bar');
+      bar.style.width    = barPct + '%';
+      bar.style.background = gradeColor(lg);
+      document.getElementById('progress-wrap').setAttribute('aria-valuenow', Math.round(pct));
+      document.getElementById('progress-label').textContent =
+        `${pct.toFixed(1)}% · ${earned % 1 === 0 ? earned : earned.toFixed(1)} / ${attempted} points`;
+    } else {
+      document.getElementById('pts-earned').textContent    = '—';
+      document.getElementById('pts-attempted').textContent = '—';
+      document.getElementById('current-pct').textContent   = '—';
+      document.getElementById('current-grade').textContent = '—';
+      document.getElementById('progress-bar').style.width  = '0%';
+      document.getElementById('progress-label').textContent = 'Enter scores above to see your progress';
+    }
+
+    // Show target panel only when all 7 non-exam4 scores entered
+    const allEntered = [e1,e2,e3,a1,a2,a3,a4].every(v => v !== null);
+    const targetCard = document.getElementById('card-target');
+    if (allEntered) {
+      targetCard.classList.add('visible');
+      updateTarget(earned);
+    } else {
+      targetCard.classList.remove('visible');
+    }
+  }
+
+  function updateTarget(earnedSoFar) {
+    if (earnedSoFar === undefined) {
+      // re-compute earned
+      const ids = ['exam1','exam2','exam3','a1','a2','a3','a4'];
+      const maxs = [100,100,100,25,25,25,25];
+      earnedSoFar = 0;
+      for (let i = 0; i < ids.length; i++) {
+        const v = val(ids[i]);
+        if (v !== null) earnedSoFar += v;
+      }
+    }
+
+    const minPct  = GRADE_MIN_PCT[targetGrade];
+    const needed  = (minPct / 100) * TOTAL_POSSIBLE_W_EXAM4 - earnedSoFar;
+    const neededRounded = Math.ceil(needed * 10) / 10;
+
+    const headline  = document.getElementById('target-headline');
+    const scoreBig  = document.getElementById('target-score-big');
+    const scoreUnit = document.getElementById('target-score-unit');
+    const note      = document.getElementById('target-note');
+
+    headline.textContent = `To earn an ${targetGrade} in PSIO 467, you need on Exam 4:`;
+
+    if (needed <= 0) {
+      // Already achieved
+      scoreBig.textContent  = '✓ Already';
+      scoreUnit.textContent = 'earned!';
+      scoreBig.style.fontSize = '2.2rem';
+      note.textContent = `You've already secured an ${targetGrade} — any score on Exam 4 keeps you there. Keep it up!`;
+      note.className   = 'target-note good';
+    } else {
+      scoreBig.style.fontSize = '4rem';
+      scoreBig.textContent  = neededRounded % 1 === 0 ? neededRounded : neededRounded.toFixed(1);
+      scoreUnit.textContent = '/ 100 pts';
+
+      if (neededRounded > 110) {
+        note.textContent = `This score is not achievable — even with extra credit, an ${targetGrade} is out of reach. Consider targeting a ${nextGrade(targetGrade)}.`;
+        note.className   = 'target-note danger';
+      } else if (neededRounded > 100) {
+        note.textContent = `This requires extra credit (above 100 pts). It may be possible if your instructor offers it.`;
+        note.className   = 'target-note caution';
+      } else if (neededRounded >= 90) {
+        note.textContent = `A strong performance on Exam 4 — you'll need to study hard, but it's achievable!`;
+        note.className   = 'target-note caution';
+      } else {
+        note.textContent = `You're well-positioned. Score at least ${neededRounded} on Exam 4 to lock in your ${targetGrade}.`;
+        note.className   = 'target-note good';
+      }
+    }
+  }
+
+  function nextGrade(g) {
+    return { A:'B', B:'C', C:'D', D:'E', E:'E' }[g];
+  }
+
+  function selectTargetGrade(g) {
+    targetGrade = g;
+    document.querySelectorAll('.grade-tab').forEach(btn => {
+      const isActive = btn.dataset.grade === g;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', isActive);
+    });
+    // re-run target calc with current earned
+    const ids = ['exam1','exam2','exam3','a1','a2','a3','a4'];
+    let earned = 0;
+    for (const id of ids) { const v = val(id); if (v !== null) earned += v; }
+    updateTarget(earned);
+  }
+
+  function clearGroup(group) {
+    const ids = group === 'exam'
+      ? ['exam1','exam2','exam3']
+      : ['a1','a2','a3','a4'];
+    ids.forEach(id => { document.getElementById(id).value = ''; });
+    recalc();
+  }
+
+  // Init
+  recalc();
+</script>
+</body>
+</html>
